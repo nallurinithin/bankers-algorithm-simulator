@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banker's Algorithm Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tippy.js/6.3.7/tippy.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css">
+    <style>
+        .step-animation {
+            transition: all 0.5s ease;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        .step-animation.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .highlight {
+            animation: highlight 1s ease infinite;
+        }
+        @keyframes highlight {
+            0% { background-color: rgba(99, 102, 241, 0.1); }
+            50% { background-color: rgba(99, 102, 241, 0.3); }
+            100% { background-color: rgba(99, 102, 241, 0.1); }
+        }
+        .floating {
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .matrix-cell {
+            transition: all 0.3s ease;
+        }
+        .matrix-cell:hover {
+            background-color: rgba(99, 102, 241, 0.1);
+        }
+        .safe-sequence-arrow {
+            font-size: 1.5rem;
+            color: #10B981;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        .process-state-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        .state-waiting {
+            background-color: #F59E0B;
+        }
+        .state-running {
+            background-color: #10B981;
+            animation: blink 1s infinite;
+        }
+        .state-blocked {
+            background-color: #EF4444;
+        }
+        .state-completed {
+            background-color: #6366F1;
+        }
+        @keyframes blink {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            border-bottom: 1px dotted #6B7280;
+            cursor: help;
+        }
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: #1F2937;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        .mode-toggle {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 30px;
+        }
+        .mode-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #D1D5DB;
+            transition: .4s;
+            border-radius: 30px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #6366F1;
+        }
+        input:checked + .slider:before {
+            transform: translateX(30px);
+        }
+        /* Responsive table styles */
+        .responsive-table {
+            overflow-x: auto;
+            max-width: 100%;
+        }
+        @media (max-width: 768px) {
+            .md\:grid-cols-12 {
+                grid-template-columns: 1fr;
+            }
+            .md\:col-span-5, .md\:col-span-7 {
+                grid-column: span 1 / span 1;
+            }
+        }
+        
+        .highlight {
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.4);
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.2); }
+        }
+        
+        /* Highlight changes in values */
+        .highlight-change {
+            background-color: #fef3c7;
+            animation: highlight-fade 2s ease;
+        }
+        
+        @keyframes highlight-fade {
+            0% { background-color: #fef3c7; }
+            100% { background-color: transparent; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 min-h-screen font-sans">
+    <div class="container mx-auto p-4 md:p-8">
+        <!-- Header Section -->
+        <div class="text-center mb-8">
+            <h1 class="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-4 floating">
+                Banker's Algorithm Simulator
+            </h1>
+            <p class="text-gray-600 text-lg md:text-xl max-w-3xl mx-auto">
+                An interactive simulation of deadlock avoidance in operating systems
+            </p>
+            
+            <div class="mt-6 flex justify-center items-center space-x-6">
+                <button onclick="showTutorial()" class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-200 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                    Show Tutorial
+                </button>
+                
+                <div class="flex items-center">
+                    <span class="text-gray-600 mr-2">Beginner Mode</span>
+                    <label class="mode-toggle">
+                        <input type="checkbox" id="modeToggle" onchange="toggleSimulationMode()">
+                        <span class="slider"></span>
+                    </label>
+                    <span class="text-gray-600 ml-2">Advanced Mode</span>
+                </div>
+            </div>
+            
+            <!-- Concept Explanation Area -->
+            <div id="conceptExplanation" class="hidden mt-4 mx-auto max-w-3xl p-4 rounded-lg border border-yellow-200 text-gray-700 transition-all duration-300">
+                Click on a concept to see its explanation
+            </div>
+        </div>
+
+        <!-- Tutorial Modal -->
+        <div id="tutorialModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 overflow-y-auto">
+            <div class="bg-white max-w-2xl mx-auto mt-20 rounded-xl p-6 space-y-4">
+                <div class="flex justify-between">
+                    <h2 class="text-2xl font-bold text-gray-800">How to Use This Simulator</h2>
+                    <button onclick="closeTutorial()" class="text-gray-400 hover:text-gray-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="space-y-4 text-gray-600">
+                    <p class="text-indigo-700 font-medium">The Banker's Algorithm helps prevent deadlocks by carefully managing resource allocation.</p>
+                    
+                    <p><strong>Key Idea:</strong> Just like a bank won't loan more money than it has (to avoid bankruptcy), an operating system shouldn't allocate more resources than available (to avoid deadlocks).</p>
+                    
+                    <div class="bg-indigo-50 p-4 rounded-lg">
+                        <p class="font-medium mb-2">Important Terms:</p>
+                        <ul class="list-disc pl-6 space-y-2">
+                            <li><strong>Allocation Matrix:</strong> Resources currently given to each process</li>
+                            <li><strong>Max Matrix:</strong> Maximum resources each process might need</li>
+                            <li><strong>Need Matrix:</strong> Additional resources each process still needs (Max - Allocation)</li>
+                            <li><strong>Available Vector:</strong> Resources currently not allocated to any process</li>
+                            <li><strong>Safe State:</strong> A system state where all processes can finish without causing deadlock</li>
+                        </ul>
+                    </div>
+                    
+                    <p><strong>Using this simulator:</strong></p>
+                    <ol class="list-decimal pl-6 space-y-1">
+                        <li>Set up your system (number of processes and resource types)</li>
+                        <li>Configure total and available resources</li>
+                        <li>For each process, specify current allocation and maximum need</li>
+                        <li>The simulator will check if your system is in a safe state</li>
+                        <li>Try requesting resources to see if they can be granted safely</li>
+                    </ol>
+                    
+                    <p><strong>Safety Check:</strong> The algorithm finds if there's a safe sequence where processes can run one after another without causing deadlock.</p>
+                </div>
+                <div class="mt-6 border-t pt-4 flex justify-between">
+                    <button onclick="showAlgorithmExample()" class="bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 transition-colors">
+                        Show Me a Simple Example
+                    </button>
+                    <button onclick="closeTutorial()" class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-200 transition-colors">
+                        I'm Ready to Try
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="grid md:grid-cols-12 gap-8">
+            <!-- Left Panel: Input Section -->
+            <div class="md:col-span-5">
+                <div class="bg-white rounded-2xl shadow-xl p-6 backdrop-blur-lg bg-opacity-90">
+                    <!-- Initial Setup -->
+                    <div id="initialSetup">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">System Configuration</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Number of Processes 
+                                </label>
+                                <input type="number" id="processes" min="1" max="10" value="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <p class="mt-1 text-sm text-gray-500">Enter the number of processes in your system (1-10)</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Number of Resource Types
+                                </label>
+                                <input type="number" id="resourceTypes" min="1" max="10" value="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <p class="mt-1 text-sm text-gray-500">Enter the number of resource types in your system (1-10)</p>
+                            </div>
+                            <button onclick="showResourceSetup()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-3 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200">
+                                Next Step
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Resource Setup -->
+                    <div id="resourceSetup" class="hidden">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">Resource Configuration</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Total Resources
+                                </label>
+                                <input type="text" id="totalResources" placeholder="e.g., 8,3,5" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Available Resources
+                                </label>
+                                <input type="text" id="available" placeholder="e.g., 5,1,2" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <button onclick="startInputProcess()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-3 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200">
+                                Next Step
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Process Input -->
+                    <div id="processInput" class="hidden">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">Process Configuration</h2>
+                        <div class="space-y-4">
+                            <div class="bg-indigo-50 p-3 rounded-lg flex items-center justify-between">
+                                <div class="text-lg font-medium text-indigo-700">
+                                    <span id="currentProcessLabel">Process P0</span>
+                                </div>
+                                <div id="processStateIndicator" class="hidden">
+                                    <span class="process-state-indicator state-waiting"></span>
+                                    <span class="text-sm text-gray-600">Waiting</span>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="allocation" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Current Allocation
+                                    </label>
+                                    <input type="text" id="allocation" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500" placeholder="Enter values separated by commas">
+                                </div>
+                                <div>
+                                    <label for="maxNeed" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Maximum Need
+                                    </label>
+                                    <input type="text" id="maxNeed" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500" placeholder="Enter values separated by commas">
+                                </div>
+                                <div>
+                                    <button onclick="calculateNeed()" id="confirmBtn" class="w-full bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 transition-all duration-200 flex items-center justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                        </svg>
+                                        Confirm Values
+                                    </button>
+                                </div>
+                                <div id="calculatedNeed" class="p-4 bg-gray-50 rounded-xl"></div>
+                            </div>
+
+                            <!-- Navigation -->
+                            <div class="flex space-x-2 mt-4">
+                                <button id="backBtn" onclick="goBack()" class="flex-1 bg-gray-500 text-white p-3 rounded-xl hover:bg-gray-600 transition-all duration-200 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                    </svg>
+                                    Previous
+                                </button>
+                                <button id="nextBtn" onclick="goForward()" class="flex-1 bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 transition-all duration-200">
+                                    Next
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sample Scenarios -->
+                    <div class="mt-8">
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">Sample Scenarios</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <button onclick="loadScenario('simple')" class="p-4 bg-gradient-to-r from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 text-green-700 rounded-lg">
+                                <span class="block font-medium">Simple Example</span>
+                                <span class="text-xs text-green-600 mt-1">(Safe State)</span>
+                            </button>
+                            <button onclick="loadScenario('deadlock')" class="p-4 bg-gradient-to-r from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 text-red-700 rounded-lg">
+                                <span class="block font-medium">Deadlock Risk</span>
+                                <span class="text-xs text-red-600 mt-1">(Unsafe State)</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Error/Success Display -->
+                    <div id="errorDisplay" class="hidden mt-4 p-4 rounded-md animate__animated animate__fadeIn"></div>
+                </div>
+            </div>
+            <!-- Right Panel: Visualization -->
+            <div class="md:col-span-7">
+                <!-- System Resources Display -->
+                <div id="visualization" class="hidden">
+                    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6 backdrop-blur-lg bg-opacity-90">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">
+                            System Resources
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div class="p-4 bg-indigo-50 rounded-lg">
+                                <div class="text-sm font-medium text-gray-600 mb-1">
+                                    Total Resources
+                                </div>
+                                <div id="totalResourcesValue" class="text-lg font-mono">...</div>
+                            </div>
+                            <div class="p-4 bg-green-50 rounded-lg">
+                                <div class="text-sm font-medium text-gray-600 mb-1">
+                                    Available Resources
+                                </div>
+                                <div id="availableResourcesValue" class="text-lg font-mono">...</div>
+                            </div>
+                            <div class="p-4 bg-purple-50 rounded-lg">
+                                <div class="text-sm font-medium text-gray-600 mb-1">
+                                    Total Allocated
+                                </div>
+                                <div id="totalAllocatedValue" class="text-lg font-mono">...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="responsive-table overflow-hidden overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 border rounded-lg">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Process</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Allocation
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Maximum
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Need
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="processTableBody" class="bg-white divide-y divide-gray-200">
+                                    <!-- Process rows will be added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Safety Algorithm -->
+                    <div id="safetyCheck" class="hidden bg-white rounded-2xl shadow-xl p-6 mb-6 backdrop-blur-lg bg-opacity-90">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">
+                            Safety Algorithm
+                        </h3>
+                        <div id="safetySteps" class="space-y-4">
+                            <!-- Steps will be displayed here -->
+                        </div>
+                    </div>
+
+                    <!-- Resource Request Simulation -->
+                    <div id="requestSimulation" class="hidden bg-white rounded-2xl shadow-xl p-6 mb-6 backdrop-blur-lg bg-opacity-90">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Resource Request Simulation</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Process Number
+                                </label>
+                                <input type="number" id="requestProcess" min="0" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Resource Request
+                                </label>
+                                <input type="text" id="requestResources" placeholder="e.g., 1,0,2" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <button onclick="simulateResourceRequest()" class="w-full bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 transition-all duration-200">
+                                Simulate Request
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Resource Release -->
+                    <div id="resourceRelease" class="hidden bg-white rounded-2xl shadow-xl p-6 mb-6 backdrop-blur-lg bg-opacity-90">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Resource Release</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Process Number
+                                </label>
+                                <input type="number" id="releaseProcess" min="0" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Resources to Release
+                                </label>
+                                <input type="text" id="releaseResources" placeholder="e.g., 1,0,2" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <button onclick="releaseResources()" class="w-full bg-green-600 text-white p-3 rounded-xl hover:bg-green-700 transition-all duration-200">
+                                Release Resources
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Statistics -->
+                    <div id="statisticsPanel" class="hidden bg-white rounded-2xl shadow-xl p-6 mb-6 backdrop-blur-lg bg-opacity-90">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Performance Statistics</h3>
+                        <div id="statistics" class="p-4 bg-gray-50 rounded-xl">
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span class="font-medium">Requests Granted:</span>
+                                    <span id="requestsGranted" class="text-green-600">0</span>
+                                </div>
+                                <div>
+                                    <span class="font-medium">Requests Denied:</span>
+                                    <span id="requestsDenied" class="text-red-600">0</span>
+                                </div>
+                                <div>
+                                    <span class="font-medium">Deadlocks Avoided:</span>
+                                    <span id="deadlocksAvoided" class="text-indigo-600">0</span>
+                                </div>
+                                <div>
+                                    <span class="font-medium">Resources Released:</span>
+                                    <span id="resourcesReleased" class="text-blue-600">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex space-x-4 mt-4">
+                        <button onclick="resetSimulator()" class="flex-1 bg-gray-600 text-white p-3 rounded-xl hover:bg-gray-700 transition-all duration-200">
+                            Reset Simulator
+                        </button>
+                        <button onclick="startTutorial()" class="flex-1 bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 transition-all duration-200">
+                            Interactive Tutorial
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tutorial Mode Overlay -->
+        <div id="tutorialMode" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+            <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <h3 id="tutorialTitle" class="text-lg leading-6 font-medium text-gray-900"></h3>
+                    <div class="mt-2">
+                        <p id="tutorialContent" class="text-sm text-gray-500"></p>
+                    </div>
+                    <div class="mt-4 flex justify-end space-x-3">
+                        <button onclick="endTutorial()" class="px-3 py-2 bg-gray-200 text-gray-800 text-sm font-semibold rounded hover:bg-gray-300">
+                            Skip Tutorial
+                        </button>
+                        <button onclick="nextTutorialStep()" class="px-3 py-2 bg-indigo-600 text-white text-sm font-semibold rounded hover:bg-indigo-700">
+                            Next Step
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Highlight Style -->
+    <style>
+        .highlight {
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.4);
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.2); }
+        }
+    </style>
+
+    <script src="script.js"></script>
+    
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 space-y-4"></div>
+</body>
+</html>
